@@ -1,0 +1,17 @@
+packages:
+  - backend
+  - frontend
+
+onlyBuiltDependencies:
+  - argon2
+  - esbuild
+  - mongodb-memory-server
+  - unrs-resolver
+  - '@scarf/scarf'
+
+allowBuilds:
+  argon2: true
+  esbuild: true
+  mongodb-memory-server: true
+  unrs-resolver: true
+  '@scarf/scarf': true

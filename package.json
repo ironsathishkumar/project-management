@@ -1,0 +1,16 @@
+{
+  "name": "project-tracker",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter backend --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build": "pnpm --filter backend --filter frontend build",
+    "lint": "pnpm --filter backend --filter frontend lint",
+    "seed": "pnpm --filter backend seed",
+    "test": "pnpm --filter backend --filter frontend test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
