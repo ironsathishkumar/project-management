@@ -261,6 +261,8 @@ export const taskService = {
       storyPoints?: number | null;
       tagIds?: string[];
       customFields?: Record<string, unknown>;
+      externalKey?: string;
+      source?: { kind: 'DOCUMENT' | 'APP' | 'GITHUB'; name?: string; section?: string; importedDescription?: string };
     }
   ) {
     const project = await Project.findOne({ id: input.projectId, workspaceId });
@@ -319,6 +321,8 @@ export const taskService = {
       order: count,
       customFields: input.customFields ?? {},
       completedAt: status.category === STATUS_CATEGORIES.COMPLETED ? new Date() : undefined,
+      externalKey: input.externalKey,
+      source: input.source ? { ...input.source, syncedAt: new Date() } : undefined,
     });
 
     if (input.tagIds?.length) {

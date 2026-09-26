@@ -19,10 +19,12 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.12.3",
     "mongodb-memory-server": "^10.1.4",
     "mongoose": "^8.13.2",
     "multer": "^2.0.1",
     "nodemailer": "^10.0.10",
+    "pdf-parse": "^2.4.5",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0",
     "zod": "^3.24.2"

@@ -43,9 +43,14 @@ export default function ProjectsPage() {
           </Typography>
         </Box>
         {isAdmin && (
-          <Button variant="contained" onClick={() => setOpen(true)}>
-            New project
-          </Button>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Button variant="outlined" component={Link} href="/projects/import">
+              Import from document
+            </Button>
+            <Button variant="contained" onClick={() => setOpen(true)}>
+              New project
+            </Button>
+          </Stack>
         )}
       </Stack>
       {open && isAdmin && (

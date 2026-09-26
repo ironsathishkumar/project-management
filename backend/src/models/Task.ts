@@ -24,6 +24,20 @@ const taskSchema = new Schema(
     storyPoints: { type: Number, default: null },
     order: { type: Number, default: 0 },
     customFields: { type: Schema.Types.Mixed, default: {} },
+    externalKey: { type: String },
+    source: {
+      type: new Schema(
+        {
+          kind: { type: String, enum: ['DOCUMENT', 'APP', 'GITHUB'], required: true },
+          name: { type: String, default: '' },
+          section: { type: String, default: '' },
+          importedDescription: { type: String, default: '' },
+          syncedAt: { type: Date },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
   },
   { timestamps: true }
 );
@@ -37,6 +51,10 @@ taskSchema.index({ projectId: 1, sprintId: 1 });
 taskSchema.index({ projectId: 1, number: 1 }, { unique: true, sparse: true });
 taskSchema.index({ workspaceId: 1, key: 1 }, { unique: true, sparse: true });
 taskSchema.index({ workspaceId: 1, updatedAt: -1 });
+taskSchema.index(
+  { projectId: 1, externalKey: 1 },
+  { unique: true, partialFilterExpression: { externalKey: { $type: 'string' } } }
+);
 taskSchema.index({ title: 'text', description: 'text' });
 
 

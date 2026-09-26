@@ -3,7 +3,8 @@
 import { RequireAdmin } from '@/components/auth/RequireAdmin';
 import { useProject } from '@/hooks/useApi';
 import { api } from '@/lib/api';
-import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Button, Card, CardContent, Divider, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -72,6 +73,15 @@ function ProjectSettingsContent() {
             </Button>
           </Stack>
         </Stack>
+        <Divider sx={{ my: 3 }} />
+        <Typography variant="subtitle1">Sync from document</Typography>
+        <Typography color="text.secondary" sx={{ mb: 2, maxWidth: 560 }}>
+          Upload the latest implementation document to add new tasks and mark checked items done. Tasks you edit
+          here are never overwritten.
+        </Typography>
+        <Button variant="outlined" component={Link} href={`/projects/import?projectId=${params.projectId}`}>
+          Import / sync document
+        </Button>
       </CardContent>
     </Card>
   );

@@ -398,6 +398,12 @@ export function TaskDrawer({
                         }`
                       : 'Unassigned'}
                 </Typography>
+                {task?.source?.kind === 'DOCUMENT' && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    From document: {task.source.name}
+                    {task.source.section ? ` · ${task.source.section}` : ''}
+                  </Typography>
+                )}
               </Box>
               <IconButton onClick={onClose} aria-label="Close" sx={{ bgcolor: '#FFFCF7' }}>
                 <Close />

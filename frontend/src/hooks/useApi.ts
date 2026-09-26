@@ -5,6 +5,8 @@ import type {
   AuthUser,
   Category,
   FilterGroup,
+  ImportPreview,
+  ImportResult,
   NavigationMenus,
   NotificationItem,
   Project,
@@ -34,6 +36,42 @@ export function useNavigation(projectId?: string | null) {
     queryKey: ['navigation', projectId ?? null],
     queryFn: () =>
       api<NavigationMenus>(`/navigation${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  });
+}
+
+export interface DocumentImportInput {
+  file: File;
+  projectId?: string;
+  projectName?: string;
+  projectKey?: string;
+}
+
+function toImportForm(input: DocumentImportInput) {
+  const form = new FormData();
+  form.append('file', input.file);
+  if (input.projectId) form.append('projectId', input.projectId);
+  if (input.projectName) form.append('projectName', input.projectName);
+  if (input.projectKey) form.append('projectKey', input.projectKey);
+  return form;
+}
+
+export function usePreviewDocumentImport() {
+  return useMutation({
+    mutationFn: (input: DocumentImportInput) =>
+      api<ImportPreview>('/imports/document/preview', { method: 'POST', body: toImportForm(input) }),
+  });
+}
+
+export function useApplyDocumentImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DocumentImportInput) =>
+      api<ImportResult>('/imports/document/apply', { method: 'POST', body: toImportForm(input) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    },
   });
 }
 

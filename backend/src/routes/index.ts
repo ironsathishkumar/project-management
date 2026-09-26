@@ -5,6 +5,7 @@ import { projectRouter } from './project.routes';
 import { categoryRouter, statusRouter, workflowRouter } from './workflow.routes';
 import { taskRouter } from './task.routes';
 import { miscRouter } from './misc.routes';
+import { importRouter } from './import.routes';
 
 export const apiRouter = Router();
 
@@ -15,4 +16,5 @@ apiRouter.use('/workflows', workflowRouter);
 apiRouter.use('/statuses', statusRouter);
 apiRouter.use('/categories', categoryRouter);
 apiRouter.use('/tasks', taskRouter);
+apiRouter.use('/imports', importRouter);
 apiRouter.use('/', miscRouter);

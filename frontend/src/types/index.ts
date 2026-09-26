@@ -119,8 +119,54 @@ export interface Task {
   subtaskDoneCount?: number;
   subtasks?: Task[];
   comments?: Comment[];
+  externalKey?: string;
+  source?: TaskSource;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TaskSource {
+  kind: 'DOCUMENT' | 'APP' | 'GITHUB';
+  name?: string;
+  section?: string;
+  syncedAt?: string;
+}
+
+export type ImportAction = 'CREATE' | 'COMPLETE' | 'UPDATE' | 'UNCHANGED' | 'REMOVED';
+
+export interface ImportChange {
+  action: ImportAction;
+  externalKey: string;
+  title: string;
+  section: string;
+  done: boolean;
+  taskId?: string;
+  taskKey?: string;
+  statusName?: string;
+  note?: string;
+}
+
+export interface ParsedImportDocument {
+  fileName: string;
+  format: 'markdown' | 'text' | 'docx' | 'pdf';
+  title: string;
+  mode: 'checklist' | 'list' | 'headings';
+  itemCount: number;
+  doneCount: number;
+  sections: Array<{ title: string; items: Array<{ externalKey: string; title: string; done: boolean }> }>;
+}
+
+export interface ImportPreview {
+  document: ParsedImportDocument;
+  target: { projectId?: string; projectName?: string; projectKey?: string; isNew: boolean };
+  changes: ImportChange[];
+  counts: Record<ImportAction, number>;
+}
+
+export interface ImportResult {
+  project: { id: string; name: string; key: string };
+  changes: ImportChange[];
+  counts: Record<ImportAction, number>;
 }
 
 export interface Sprint {
