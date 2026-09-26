@@ -2,8 +2,35 @@
 // Push task updates from any application or CI job to Project Tracker.
 // Requires Node 18+. Configure with PM_API_URL (e.g. http://localhost:4000/api/v1) and PM_API_KEY.
 
-import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { chmod, readFile, writeFile } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+function git(args) {
+  return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+}
+
+function repoRoot() {
+  try {
+    return git(['rev-parse', '--show-toplevel']);
+  } catch {
+    return null;
+  }
+}
+
+function loadEnvFile() {
+  const root = repoRoot();
+  const file = root ? join(root, '.pm-sync.env') : null;
+  if (!file || !existsSync(file)) return;
+  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
+    if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+  }
+}
+
+loadEnvFile();
 
 const API_URL = (process.env.PM_API_URL ?? 'http://localhost:4000/api/v1').replace(/\/$/, '');
 const API_KEY = process.env.PM_API_KEY;
@@ -16,8 +43,12 @@ const USAGE = `Usage: pm-sync <command> [args]
   comment <ref> "<text>"                   Add a comment to a task
   doc     <file> [--dry-run]               Sync an implementation document (.md, .docx, .pdf, .txt)
   list    [--status s] [--mine]            List tasks in the project
+  commits [git log args]                   Send commits (default: the last one) so "fixes KEY-4" / "KEY-4 done"
+                                           update tasks; also re-syncs PM_DOCS_PATH if those commits changed it
+  install-hook                             Run "commits" automatically after every commit in this repository
 
-Environment: PM_API_URL, PM_API_KEY`;
+Settings come from the environment or a .pm-sync.env file in the repository root:
+  PM_API_URL, PM_API_KEY, PM_DOCS_PATH (optional, e.g. docs/implementation.md)`;
 
 function parseArgs(argv) {
   const positional = [];
@@ -63,7 +94,15 @@ async function main() {
     console.log(USAGE);
     return;
   }
-  if (!API_KEY) throw new Error('PM_API_KEY is not set');
+  if (command === 'install-hook') {
+    await installHook();
+    return;
+  }
+  if (!API_KEY) throw new Error('PM_API_KEY is not set (environment or .pm-sync.env)');
+  if (command === 'commits') {
+    await sendCommits(rest);
+    return;
+  }
   const { positional, flags } = parseArgs(rest);
 
   switch (command) {
@@ -104,10 +143,7 @@ async function main() {
     }
     case 'doc': {
       requireArgs(positional, 1);
-      const file = positional[0];
-      const form = new FormData();
-      form.append('file', new Blob([await readFile(file)]), basename(file));
-      const data = await call('POST', `/app/document${flags['dry-run'] ? '?dryRun=true' : ''}`, form);
+      const data = await syncDoc(positional[0], Boolean(flags['dry-run']));
       const { CREATE, COMPLETE, UPDATE, UNCHANGED, REMOVED } = data.counts;
       console.log(
         `${data.dryRun ? 'Dry run' : 'Synced'}: ${CREATE} new, ${COMPLETE} done, ${UPDATE} updated, ${UNCHANGED} unchanged, ${REMOVED} not in document`
@@ -128,6 +164,74 @@ async function main() {
       console.error(`Unknown command "${command}"\n\n${USAGE}`);
       process.exit(2);
   }
+}
+
+async function syncDoc(file, dryRun) {
+  const form = new FormData();
+  form.append('file', new Blob([await readFile(file)]), basename(file));
+  return call('POST', `/app/document${dryRun ? '?dryRun=true' : ''}`, form);
+}
+
+async function sendCommits(logArgs) {
+  const root = repoRoot();
+  if (!root) throw new Error('Not inside a git repository');
+  const range = logArgs.length ? logArgs : ['-1'];
+  const raw = git(['log', '--format=%H%x1f%an%x1f%B%x1e', ...range]);
+  const commits = raw
+    .split('\x1e')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [sha, author, message] = entry.split('\x1f');
+      return { sha, author, message: message.trim() };
+    })
+    .reverse();
+  if (!commits.length) {
+    console.log('No commits to send');
+    return;
+  }
+  let branch;
+  try {
+    branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
+  } catch {
+    branch = undefined;
+  }
+  const data = await call('POST', '/app/commits', { branch, commits });
+  for (const result of data.results) {
+    const refs = result.refs.map((ref) => `${ref.key}${ref.status ? ` → ${ref.status}` : ''}${ref.error ? ` (${ref.error})` : ''}`);
+    console.log(`${result.sha} ${result.skipped ? `skipped (${result.skipped})` : refs.length ? refs.join(', ') : 'no task references'}`);
+  }
+
+  const docsPath = process.env.PM_DOCS_PATH;
+  if (docsPath) {
+    const changed = git(['log', '--format=', '--name-only', ...range]).split('\n').map((line) => line.trim());
+    if (changed.includes(docsPath.replace(/^\/+/, ''))) {
+      const result = await syncDoc(join(root, docsPath), false);
+      const { CREATE, COMPLETE, UPDATE } = result.counts;
+      console.log(`Document synced: ${CREATE} new, ${COMPLETE} done, ${UPDATE} updated`);
+    }
+  }
+}
+
+async function installHook() {
+  const root = repoRoot();
+  if (!root) throw new Error('Not inside a git repository');
+  const hooksDir = resolve(root, git(['rev-parse', '--git-path', 'hooks']));
+  const hookPath = join(hooksDir, 'post-commit');
+  const script = fileURLToPath(import.meta.url);
+  const marker = '# pm-sync';
+  const line = `(node "${script}" commits -1 >> "$(git rev-parse --git-dir)/pm-sync.log" 2>&1 &) ${marker}`;
+  const existing = existsSync(hookPath) ? await readFile(hookPath, 'utf8') : '#!/bin/sh\n';
+  if (existing.includes(marker)) {
+    console.log(`Hook already installed: ${hookPath}`);
+    return;
+  }
+  await writeFile(hookPath, `${existing.trimEnd()}\n${line}\n`);
+  await chmod(hookPath, 0o755);
+  if (!existsSync(join(root, '.pm-sync.env'))) {
+    console.log('Create .pm-sync.env in the repository root with PM_API_URL and PM_API_KEY (keep it out of git).');
+  }
+  console.log(`Installed post-commit hook: ${hookPath}\nLog: ${resolve(root, git(['rev-parse', '--git-dir']), 'pm-sync.log')}`);
 }
 
 main().catch((error) => {

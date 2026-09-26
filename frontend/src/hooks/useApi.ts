@@ -5,6 +5,8 @@ import type {
   AuthUser,
   Category,
   FilterGroup,
+  GithubSyncResult,
+  GithubTestResult,
   ImportPreview,
   ImportResult,
   Integration,
@@ -121,6 +123,54 @@ export function useRotateIntegration() {
   return useIntegrationMutation((id: string) =>
     api<IntegrationWithKey>(`/integrations/${id}/rotate`, { method: 'POST' })
   );
+}
+
+export function useConfigureGithub() {
+  return useIntegrationMutation(
+    ({
+      id,
+      ...input
+    }: {
+      id: string;
+      repo: string;
+      branch?: string;
+      docsPath?: string;
+      token?: string | null;
+      autoSync?: boolean;
+    }) => api<Integration>(`/integrations/${id}/github`, { method: 'PUT', body: JSON.stringify(input) })
+  );
+}
+
+export function useDisconnectGithub() {
+  return useIntegrationMutation((id: string) => api<Integration>(`/integrations/${id}/github`, { method: 'DELETE' }));
+}
+
+export function useGithubWebhookSecret() {
+  return useIntegrationMutation((id: string) =>
+    api<{ webhookUrl: string; secret: string }>(`/integrations/${id}/github/secret`, { method: 'POST' })
+  );
+}
+
+export function useTestGithub() {
+  return useMutation({
+    mutationFn: (id: string) => api<GithubTestResult>(`/integrations/${id}/github/test`, { method: 'POST' }),
+  });
+}
+
+export function useSyncGithub() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, sinceDays }: { id: string; sinceDays?: number }) =>
+      api<GithubSyncResult>(`/integrations/${id}/github/sync`, {
+        method: 'POST',
+        body: JSON.stringify(sinceDays ? { sinceDays } : {}),
+      }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['integrations'] });
+      void queryClient.invalidateQueries({ queryKey: ['integration-activity'] });
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
 }
 
 export function useDeleteIntegration() {

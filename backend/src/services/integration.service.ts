@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { PROJECT_STATUS } from '../config/constants';
+import { env } from '../config/env';
 import { Activity, Integration, Project, Status, Task, User } from '../models';
 import { AppContext } from '../types';
 import { ApiError } from '../utils/ApiError';
@@ -40,12 +41,29 @@ async function present(integrations: IntegrationRecord[]) {
       createdBy: creator ? { id: creator.id as string, name: `${creator.firstName} ${creator.lastName}`.trim() } : null,
       lastUsedAt: item.lastUsedAt,
       requestCount: item.requestCount,
+      github: item.github
+        ? {
+            repo: item.github.repo,
+            branch: item.github.branch,
+            docsPath: item.github.docsPath,
+            autoSync: item.github.autoSync,
+            hasToken: Boolean(item.github.tokenEnc),
+            hasWebhookSecret: Boolean(item.github.webhookSecretEnc),
+            webhookUrl: `${env.apiPublicUrl}/api/v1/webhooks/github/${item.id}`,
+            lastSyncedAt: item.github.lastSyncedAt,
+            lastEventAt: item.github.lastEventAt,
+            lastEventStatus: item.github.lastEventStatus,
+            lastEventMessage: item.github.lastEventMessage,
+          }
+        : null,
       createdAt: (item as unknown as { createdAt: Date }).createdAt,
     };
   });
 }
 
-async function findOwned(workspaceId: string, integrationId: string) {
+export const presentIntegrations = present;
+
+export async function findOwned(workspaceId: string, integrationId: string) {
   const integration = await Integration.findOne({ id: integrationId, workspaceId });
   if (!integration) {
     throw ApiError.notFound('INTEGRATION_NOT_FOUND', 'Integration not found');
@@ -144,6 +162,24 @@ export const integrationService = {
         createdAt: (item as unknown as { createdAt: Date }).createdAt,
       };
     });
+  },
+
+  async contextFor(integrationId: string): Promise<AppContext> {
+    const integration = await Integration.findOne({ id: integrationId });
+    if (!integration || integration.status !== 'ACTIVE') {
+      throw ApiError.notFound('INTEGRATION_NOT_FOUND', 'Integration not found or revoked');
+    }
+    const project = await Project.findOne({ id: integration.projectId, workspaceId: integration.workspaceId });
+    if (!project || project.status === PROJECT_STATUS.ARCHIVED) {
+      throw ApiError.forbidden('The connected project is archived or no longer exists');
+    }
+    return {
+      integrationId: integration.id as string,
+      integrationName: integration.name,
+      workspaceId: integration.workspaceId,
+      projectId: integration.projectId,
+      actorUserId: integration.createdBy,
+    };
   },
 
   async authenticate(apiKey: string): Promise<AppContext> {

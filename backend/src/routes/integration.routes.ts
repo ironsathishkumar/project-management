@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
-import { appController, integrationController } from '../controllers/integration.controller';
+import { appController, integrationController, webhookController } from '../controllers/integration.controller';
 import { authenticate } from '../middlewares/authenticate';
 import { authenticateApiKey, readApiKey } from '../middlewares/authenticateApiKey';
 import { loadWorkspaceContext, requireWorkspaceAdmin } from '../middlewares/authorize';
@@ -10,6 +10,9 @@ import { validate } from '../middlewares/validate';
 import {
   appBulkUpsertSchema,
   appCommentSchema,
+  appCommitsSchema,
+  configureGithubSchema,
+  githubSyncSchema,
   appUpdateTaskSchema,
   appUpsertTaskSchema,
   createIntegrationSchema,
@@ -26,6 +29,14 @@ integrationRouter.patch('/:integrationId', validate(updateIntegrationSchema), in
 integrationRouter.post('/:integrationId/rotate', integrationController.rotate);
 integrationRouter.delete('/:integrationId', integrationController.remove);
 integrationRouter.get('/:integrationId/activity', integrationController.activity);
+integrationRouter.put('/:integrationId/github', validate(configureGithubSchema), integrationController.configureGithub);
+integrationRouter.delete('/:integrationId/github', integrationController.disconnectGithub);
+integrationRouter.post('/:integrationId/github/secret', integrationController.githubSecret);
+integrationRouter.post('/:integrationId/github/test', integrationController.testGithub);
+integrationRouter.post('/:integrationId/github/sync', validate(githubSyncSchema), integrationController.syncGithub);
+
+export const webhookRouter = Router();
+webhookRouter.post('/github/:integrationId', webhookController.github);
 
 const perKeyLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -48,3 +59,4 @@ appRouter.get('/tasks/:ref', appController.getTask);
 appRouter.patch('/tasks/:ref', validate(appUpdateTaskSchema), appController.updateTask);
 appRouter.post('/tasks/:ref/comments', validate(appCommentSchema), appController.comment);
 appRouter.post('/document', upload.single('file'), appController.importDocument);
+appRouter.post('/commits', validate(appCommitsSchema), appController.commits);

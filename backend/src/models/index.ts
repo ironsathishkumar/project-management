@@ -23,3 +23,4 @@ export { Sprint } from './Sprint';
 export { ProjectRole } from './ProjectRole';
 export { TimeEntry } from './TimeEntry';
 export { Integration } from './Integration';
+export { ProcessedCommit } from './ProcessedCommit';

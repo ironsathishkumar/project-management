@@ -313,3 +313,31 @@ export const appUpdateTaskSchema = z
 export const appCommentSchema = z.object({
   content: z.string().trim().min(1).max(5000),
 });
+
+export const configureGithubSchema = z.object({
+  repo: z.string().trim().min(3).max(200),
+  branch: z.string().trim().max(200).optional(),
+  docsPath: z.string().trim().max(300).optional(),
+  token: z.string().trim().max(400).nullable().optional(),
+  autoSync: z.boolean().optional(),
+});
+
+export const githubSyncSchema = z.object({
+  sinceDays: z.number().int().min(1).max(90).optional(),
+});
+
+export const appCommitsSchema = z.object({
+  branch: z.string().trim().max(200).optional(),
+  commits: z
+    .array(
+      z.object({
+        sha: z.string().trim().min(7).max(64),
+        message: z.string().max(20000),
+        url: z.string().url().max(500).optional(),
+        author: z.string().max(200).optional(),
+        branch: z.string().max(200).optional(),
+      })
+    )
+    .min(1)
+    .max(300),
+});

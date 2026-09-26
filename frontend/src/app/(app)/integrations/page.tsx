@@ -11,8 +11,9 @@ import {
   useUpdateIntegration,
 } from '@/hooks/useApi';
 import { API_URL } from '@/lib/api';
+import { CopyBlock } from '@/components/integrations/CopyBlock';
+import { GithubSummary } from '@/components/integrations/GithubPanel';
 import type { Integration, IntegrationWithKey } from '@/types';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
 import {
   Alert,
@@ -26,13 +27,11 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
   MenuItem,
   Stack,
   Tab,
   Tabs,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import { formatDistanceToNow } from 'date-fns';
@@ -50,48 +49,6 @@ const ACTIVITY_LABEL: Record<string, string> = {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Something went wrong';
-}
-
-function CopyBlock({ value, label }: { value: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Box sx={{ position: 'relative' }}>
-      {label && (
-        <Typography variant="caption" color="text.secondary">
-          {label}
-        </Typography>
-      )}
-      <Box
-        component="pre"
-        sx={{
-          m: 0,
-          p: 1.5,
-          pr: 6,
-          bgcolor: 'action.hover',
-          borderRadius: 1,
-          fontSize: 12.5,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-        }}
-      >
-        {value}
-      </Box>
-      <Tooltip title={copied ? 'Copied' : 'Copy'}>
-        <IconButton
-          size="small"
-          onClick={() => {
-            void navigator.clipboard.writeText(value).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            });
-          }}
-          sx={{ position: 'absolute', right: 6, bottom: 6 }}
-        >
-          <ContentCopyIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-    </Box>
-  );
 }
 
 function snippets(apiKey: string, projectKey = 'KEY') {
@@ -248,6 +205,7 @@ function IntegrationRow({
             {errorMessage(error)}
           </Alert>
         )}
+        <GithubSummary item={item} />
         <Collapse in={showActivity} unmountOnExit>
           <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
             <ActivityList integrationId={item.id} />
@@ -352,6 +310,10 @@ function IntegrationsContent() {
               Create or update tasks using its own ids (<code>externalKey</code>), one at a time or up to 500 in bulk.
             </li>
             <li>Re-sync its implementation document, same rules as the manual document import.</li>
+            <li>
+              With GitHub linked: commits like <code>fixes BANK-4</code> or <code>BANK-4 done</code> update tasks, and
+              edits to the document in the repo re-sync the plan.
+            </li>
             <li>
               Manual edits win: titles and descriptions changed here are never overwritten. All changes show in task
               activity.

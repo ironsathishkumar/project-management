@@ -6,6 +6,7 @@ declare global {
       authUser?: AuthUser;
       workspaceContext?: WorkspaceContext;
       appContext?: AppContext;
+      rawBody?: Buffer;
     }
   }
 }

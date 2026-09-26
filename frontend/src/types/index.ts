@@ -174,7 +174,35 @@ export interface Integration {
   createdBy: { id: string; name: string } | null;
   lastUsedAt?: string;
   requestCount: number;
+  github: IntegrationGithub | null;
   createdAt: string;
+}
+
+export interface IntegrationGithub {
+  repo: string;
+  branch: string;
+  docsPath: string;
+  autoSync: boolean;
+  hasToken: boolean;
+  hasWebhookSecret: boolean;
+  webhookUrl: string;
+  lastSyncedAt?: string;
+  lastEventAt?: string;
+  lastEventStatus?: 'OK' | 'ERROR';
+  lastEventMessage?: string;
+}
+
+export interface GithubTestResult {
+  repo: string;
+  private: boolean;
+  defaultBranch: string;
+  docFound: boolean | null;
+}
+
+export interface GithubSyncResult {
+  message: string;
+  commits: { processed: number; skipped: number; taskUpdates: number };
+  document: { ok: boolean; error?: string } | null;
 }
 
 export interface IntegrationWithKey {

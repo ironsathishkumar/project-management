@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { appSyncService } from '../services/appSync.service';
+import { githubService, processCommits } from '../services/github.service';
 import { integrationService } from '../services/integration.service';
+import { Integration } from '../models';
 import { ApiError } from '../utils/ApiError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
@@ -30,6 +32,47 @@ export const integrationController = {
 
   activity: asyncHandler(async (req: Request, res: Response) => {
     sendSuccess(res, await integrationService.activity(req.workspaceContext!.workspaceId, req.params.integrationId));
+  }),
+
+  configureGithub: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(
+      res,
+      await githubService.configure(req.workspaceContext!.workspaceId, req.params.integrationId, req.body)
+    );
+  }),
+
+  disconnectGithub: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(res, await githubService.disconnect(req.workspaceContext!.workspaceId, req.params.integrationId));
+  }),
+
+  githubSecret: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(
+      res,
+      await githubService.regenerateWebhookSecret(req.workspaceContext!.workspaceId, req.params.integrationId)
+    );
+  }),
+
+  testGithub: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(res, await githubService.test(req.workspaceContext!.workspaceId, req.params.integrationId));
+  }),
+
+  syncGithub: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(
+      res,
+      await githubService.syncNow(req.workspaceContext!.workspaceId, req.params.integrationId, req.body?.sinceDays)
+    );
+  }),
+};
+
+export const webhookController = {
+  github: asyncHandler(async (req: Request, res: Response) => {
+    const result = await githubService.handleWebhook(req.params.integrationId, {
+      event: req.header('x-github-event') ?? undefined,
+      signature: req.header('x-hub-signature-256') ?? undefined,
+      rawBody: req.rawBody,
+      payload: req.body ?? {},
+    });
+    sendSuccess(res, result);
   }),
 };
 
@@ -69,6 +112,20 @@ export const appController = {
 
   comment: asyncHandler(async (req: Request, res: Response) => {
     sendSuccess(res, await appSyncService.comment(req.appContext!, req.params.ref, req.body.content), 201);
+  }),
+
+  commits: asyncHandler(async (req: Request, res: Response) => {
+    const ctx = req.appContext!;
+    const integration = await Integration.findOne({ id: ctx.integrationId }).select('github.branch');
+    const branch = integration?.github?.branch || undefined;
+    const commits = (req.body.commits as Array<Record<string, string>>).map((commit) => ({
+      sha: commit.sha,
+      message: commit.message,
+      url: commit.url,
+      author: commit.author,
+      branch: commit.branch ?? req.body.branch,
+    }));
+    sendSuccess(res, await processCommits(ctx, commits, { branch }));
   }),
 
   importDocument: asyncHandler(async (req: Request, res: Response) => {

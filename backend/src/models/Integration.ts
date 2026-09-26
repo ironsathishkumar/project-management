@@ -13,6 +13,25 @@ const integrationSchema = new Schema(
     createdBy: { type: String, required: true },
     lastUsedAt: { type: Date },
     requestCount: { type: Number, default: 0 },
+    github: {
+      type: new Schema(
+        {
+          repo: { type: String, required: true, trim: true },
+          branch: { type: String, default: '' },
+          docsPath: { type: String, default: '' },
+          tokenEnc: { type: String },
+          webhookSecretEnc: { type: String },
+          autoSync: { type: Boolean, default: true },
+          lastSyncedAt: { type: Date },
+          lastDocSha: { type: String },
+          lastEventAt: { type: Date },
+          lastEventStatus: { type: String, enum: ['OK', 'ERROR'] },
+          lastEventMessage: { type: String, default: '' },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
   },
   { timestamps: true }
 );
