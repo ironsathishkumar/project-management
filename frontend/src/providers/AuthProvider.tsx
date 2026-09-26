@@ -1,8 +1,16 @@
 'use client';
 
 import { AuthUser, Workspace } from '@/types';
-import { clearSession, getAccessToken, getWorkspaceId, setSession } from '@/lib/api';
-import { api } from '@/lib/api';
+import {
+  ApiClientError,
+  SESSION_EXPIRED_EVENT,
+  SessionTokens,
+  api,
+  clearSession,
+  getWorkspaceId,
+  hasSessionHint,
+  setSession,
+} from '@/lib/api';
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -14,8 +22,13 @@ interface AuthContextValue {
   setWorkspaceId: (id: string) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (input: { firstName: string; lastName: string; email: string; password: string }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  logoutEverywhere: () => Promise<void>;
 }
+
+type SessionResponse = SessionTokens & { user: AuthUser };
+
+export const SESSION_ENDED_FLAG = 'pt:sessionEnded';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -26,8 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [workspaceId, setWorkspaceIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  function resetState() {
+    setUser(null);
+    setWorkspaces([]);
+    setWorkspaceIdState(null);
+  }
+
   async function bootstrap() {
-    if (!getAccessToken()) {
+    if (!hasSessionHint()) {
+      clearSession();
       setLoading(false);
       return;
     }
@@ -40,8 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('workspaceId', stored);
         setWorkspaceIdState(stored);
       }
-    } catch {
-      clearSession();
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) clearSession();
     } finally {
       setLoading(false);
     }
@@ -49,10 +69,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void bootstrap();
+
+    const onExpired = () => {
+      sessionStorage.setItem(SESSION_ENDED_FLAG, '1');
+      resetState();
+      router.replace('/login');
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'hasSession' && event.newValue === null) onExpired();
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+      window.removeEventListener('storage', onStorage);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    async function signOut(path: '/auth/logout' | '/auth/logout-all') {
+      try {
+        await api(path, { method: 'POST' });
+      } catch {
+        // Local sign-out still happens if the server is unreachable.
+      }
+      clearSession();
+      resetState();
+      router.push('/login');
+    }
+
+    return {
       user,
       workspaces,
       workspace: workspaces.find((item) => item.id === workspaceId) ?? null,
@@ -63,11 +110,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.location.reload();
       },
       login: async (email, password) => {
-        const result = await api<{ user: AuthUser; accessToken: string; refreshToken: string }>('/auth/login', {
+        const result = await api<SessionResponse>('/auth/login', {
           method: 'POST',
           body: JSON.stringify({ email, password }),
         });
-        setSession({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+        setSession(result);
         const list = await api<Workspace[]>('/workspaces');
         if (list[0]) {
           localStorage.setItem('workspaceId', list[0].id);
@@ -78,23 +125,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push('/home');
       },
       register: async (input) => {
-        const result = await api<{ user: AuthUser; accessToken: string; refreshToken: string }>('/auth/register', {
+        const result = await api<SessionResponse>('/auth/register', {
           method: 'POST',
           body: JSON.stringify(input),
         });
-        setSession({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+        setSession(result);
         setUser(result.user);
         router.push('/home');
       },
-      logout: () => {
-        clearSession();
-        setUser(null);
-        setWorkspaces([]);
-        router.push('/login');
-      },
-    }),
-    [loading, router, user, workspaceId, workspaces]
-  );
+      logout: () => signOut('/auth/logout'),
+      logoutEverywhere: () => signOut('/auth/logout-all'),
+    };
+  }, [loading, router, user, workspaceId, workspaces]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

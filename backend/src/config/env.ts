@@ -15,14 +15,35 @@ function required(name: string): string {
   return value;
 }
 
+function positiveNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number`);
+  }
+  return value;
+}
+
+function sameSite(value: string | undefined): 'strict' | 'lax' | 'none' {
+  const normalized = (value ?? 'strict').toLowerCase();
+  if (normalized !== 'strict' && normalized !== 'lax' && normalized !== 'none') {
+    throw new Error('REFRESH_COOKIE_SAMESITE must be strict, lax or none');
+  }
+  return normalized;
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 4000),
   mongoUri: required('MONGO_URI'),
   jwtAccessSecret: required('JWT_ACCESS_SECRET'),
-  jwtRefreshSecret: required('JWT_REFRESH_SECRET'),
-  jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
-  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+  accessTokenTtlMinutes: positiveNumber('ACCESS_TOKEN_TTL_MINUTES', 120),
+  refreshTokenTtlDays: positiveNumber('REFRESH_TOKEN_TTL_DAYS', 60),
+  refreshCookieSameSite: sameSite(process.env.REFRESH_COOKIE_SAMESITE),
+  cookieSecure: process.env.COOKIE_SECURE
+    ? process.env.COOKIE_SECURE === 'true'
+    : (process.env.NODE_ENV ?? 'development') === 'production',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
   appUrl: process.env.APP_URL ?? process.env.CORS_ORIGIN ?? 'http://localhost:3000',
   apiPublicUrl: process.env.API_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 4000}`,

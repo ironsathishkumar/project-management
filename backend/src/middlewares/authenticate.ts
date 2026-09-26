@@ -1,23 +1,31 @@
 import { NextFunction, Request, Response } from 'express';
 import { User } from '../models';
+import { sessionService } from '../services/session.service';
 import { ApiError } from '../utils/ApiError';
-import { verifyAccessToken } from '../utils/tokens';
+import { TokenExpiredError, verifyAccessToken } from '../utils/tokens';
 
 export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
     const header = req.headers.authorization;
-    const token = header?.startsWith('Bearer ') ? header.slice(7) : req.cookies?.accessToken;
-
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
     if (!token) {
       throw ApiError.unauthorized();
     }
 
-    const payload = verifyAccessToken(token);
-    if (payload.type !== 'access') {
-      throw ApiError.unauthorized('Invalid token type');
+    let payload: ReturnType<typeof verifyAccessToken>;
+    try {
+      payload = verifyAccessToken(token);
+    } catch (error) {
+      if (error instanceof TokenExpiredError) {
+        throw new ApiError(401, 'TOKEN_EXPIRED', 'Access token expired');
+      }
+      throw ApiError.unauthorized('Invalid access token');
     }
 
-    const user = await User.findOne({ id: payload.sub, isActive: true });
+    const [user] = await Promise.all([
+      User.findOne({ id: payload.sub, isActive: true }),
+      sessionService.assertActive(payload.sid, payload.sub),
+    ]);
     if (!user) {
       throw ApiError.unauthorized('User not found or inactive');
     }
@@ -27,13 +35,10 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      sessionId: payload.sid,
     };
     next();
   } catch (error) {
-    if (error instanceof ApiError) {
-      next(error);
-      return;
-    }
-    next(ApiError.unauthorized('Invalid or expired token'));
+    next(error instanceof ApiError ? error : ApiError.unauthorized('Invalid or expired token'));
   }
 }

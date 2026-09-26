@@ -1,27 +1,36 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 
-export interface TokenPayload {
+export interface AccessTokenPayload {
   sub: string;
-  type: 'access' | 'refresh';
+  sid: string;
+  type: 'access';
 }
 
-export function signAccessToken(userId: string): string {
-  return jwt.sign({ sub: userId, type: 'access' } satisfies TokenPayload, env.jwtAccessSecret, {
-    expiresIn: env.jwtAccessExpiresIn as jwt.SignOptions['expiresIn'],
+const ISSUER = 'project-tracker';
+const AUDIENCE = 'project-tracker-api';
+
+export function signAccessToken(userId: string, sessionId: string) {
+  const expiresAt = new Date(Date.now() + env.accessTokenTtlMinutes * 60 * 1000);
+  const token = jwt.sign({ sub: userId, sid: sessionId, type: 'access' } satisfies AccessTokenPayload, env.jwtAccessSecret, {
+    algorithm: 'HS256',
+    expiresIn: Math.floor(env.accessTokenTtlMinutes * 60),
+    issuer: ISSUER,
+    audience: AUDIENCE,
   });
+  return { token, expiresAt };
 }
 
-export function signRefreshToken(userId: string): string {
-  return jwt.sign({ sub: userId, type: 'refresh' } satisfies TokenPayload, env.jwtRefreshSecret, {
-    expiresIn: env.jwtRefreshExpiresIn as jwt.SignOptions['expiresIn'],
-  });
+export function verifyAccessToken(token: string): AccessTokenPayload {
+  const payload = jwt.verify(token, env.jwtAccessSecret, {
+    algorithms: ['HS256'],
+    issuer: ISSUER,
+    audience: AUDIENCE,
+  }) as Partial<AccessTokenPayload>;
+  if (payload.type !== 'access' || typeof payload.sub !== 'string' || typeof payload.sid !== 'string') {
+    throw new jwt.JsonWebTokenError('Invalid token payload');
+  }
+  return payload as AccessTokenPayload;
 }
 
-export function verifyAccessToken(token: string): TokenPayload {
-  return jwt.verify(token, env.jwtAccessSecret) as TokenPayload;
-}
-
-export function verifyRefreshToken(token: string): TokenPayload {
-  return jwt.verify(token, env.jwtRefreshSecret) as TokenPayload;
-}
+export { TokenExpiredError } from 'jsonwebtoken';

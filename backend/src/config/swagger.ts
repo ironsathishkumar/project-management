@@ -16,7 +16,17 @@ export const openApiDocument = {
   paths: {
     '/auth/register': { post: { summary: 'Register', security: [], tags: ['Auth'] } },
     '/auth/login': { post: { summary: 'Login', security: [], tags: ['Auth'] } },
-    '/auth/refresh': { post: { summary: 'Refresh tokens', security: [], tags: ['Auth'] } },
+    '/auth/refresh': {
+      post: {
+        summary: 'Get a new access token using the httpOnly refresh cookie (rotates the refresh token)',
+        security: [],
+        tags: ['Auth'],
+      },
+    },
+    '/auth/logout': { post: { summary: 'Sign out this session and clear the refresh cookie', security: [], tags: ['Auth'] } },
+    '/auth/logout-all': { post: { summary: 'Sign out every session of the current user', tags: ['Auth'] } },
+    '/auth/sessions': { get: { summary: 'List active sessions of the current user', tags: ['Auth'] } },
+    '/auth/sessions/{sessionId}': { delete: { summary: 'Sign out one session', tags: ['Auth'] } },
     '/auth/me': { get: { summary: 'Current user', tags: ['Auth'] } },
     '/workspaces': {
       get: { summary: 'List workspaces', tags: ['Workspaces'] },

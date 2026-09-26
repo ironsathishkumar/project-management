@@ -13,6 +13,7 @@ import {
   HubOutlined,
   InsightsOutlined,
   Inventory2Outlined,
+  DevicesOutlined,
   LogoutOutlined,
   NotificationsNoneOutlined,
   PeopleOutlined,
@@ -87,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const params = useParams<{ projectId?: string }>();
-  const { user, workspaces, workspace, setWorkspaceId, logout, loading } = useAuth();
+  const { user, workspaces, workspace, setWorkspaceId, logout, logoutEverywhere, loading } = useAuth();
   const notifications = useNotifications();
   const projects = useProjects();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -403,13 +404,24 @@ export function AppShell({ children }: { children: ReactNode }) {
               <MenuItem
                 onClick={() => {
                   setAnchor(null);
-                  logout();
+                  void logout();
                 }}
               >
                 <ListItemIcon>
                   <LogoutOutlined fontSize="small" />
                 </ListItemIcon>
                 Sign out
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setAnchor(null);
+                  void logoutEverywhere();
+                }}
+              >
+                <ListItemIcon>
+                  <DevicesOutlined fontSize="small" />
+                </ListItemIcon>
+                Sign out of all devices
               </MenuItem>
             </Menu>
           </Toolbar>

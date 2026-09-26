@@ -24,3 +24,4 @@ export { ProjectRole } from './ProjectRole';
 export { TimeEntry } from './TimeEntry';
 export { Integration } from './Integration';
 export { ProcessedCommit } from './ProcessedCommit';
+export { Session } from './Session';

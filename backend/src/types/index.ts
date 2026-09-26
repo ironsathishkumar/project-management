@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
+  sessionId: string;
 }
 
 export interface WorkspaceContext {

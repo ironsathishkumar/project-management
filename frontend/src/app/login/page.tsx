@@ -1,10 +1,10 @@
 'use client';
 
-import { useAuth } from '@/providers/AuthProvider';
+import { SESSION_ENDED_FLAG, useAuth } from '@/providers/AuthProvider';
 import { ApiClientError } from '@/lib/api';
 import { Alert, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,6 +17,13 @@ const schema = z.object({
 export default function LoginPage() {
   const { login } = useAuth();
   const [error, setError] = useState('');
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    if (sessionStorage.getItem(SESSION_ENDED_FLAG)) {
+      sessionStorage.removeItem(SESSION_ENDED_FLAG);
+      setExpired(true);
+    }
+  }, []);
   const form = useForm({ resolver: zodResolver(schema), defaultValues: { email: 'owner@tracker.local', password: 'ChangeMe123!' } });
 
   return (
@@ -37,6 +44,7 @@ export default function LoginPage() {
           })}
         >
           <Stack spacing={2}>
+            {expired && !error && <Alert severity="warning">Your session has ended. Please sign in again.</Alert>}
             {error && <Alert severity="error">{error}</Alert>}
             <TextField label="Email" {...form.register('email')} />
             <TextField label="Password" type="password" {...form.register('password')} />
