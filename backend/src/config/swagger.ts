@@ -9,6 +9,7 @@ export const openApiDocument = {
   components: {
     securitySchemes: {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      appApiKey: { type: 'apiKey', in: 'header', name: 'x-api-key' },
     },
   },
   security: [{ bearerAuth: [] }],
@@ -33,5 +34,46 @@ export const openApiDocument = {
     },
     '/reports/summary': { get: { summary: 'Workspace reports', tags: ['Reports'] } },
     '/search': { get: { summary: 'Global search', tags: ['Search'] } },
+    '/imports/document/preview': { post: { summary: 'Preview a document import (admin)', tags: ['Imports'] } },
+    '/imports/document/apply': { post: { summary: 'Apply a document import (admin)', tags: ['Imports'] } },
+    '/integrations': {
+      get: { summary: 'List connected apps (admin)', tags: ['Integrations'] },
+      post: { summary: 'Connect an app and issue its API key (admin)', tags: ['Integrations'] },
+    },
+    '/integrations/{integrationId}/rotate': {
+      post: { summary: 'Issue a new API key (admin)', tags: ['Integrations'] },
+    },
+    '/app/me': {
+      get: { summary: 'Connected project and valid statuses', tags: ['App API'], security: [{ appApiKey: [] }] },
+    },
+    '/app/tasks': {
+      get: { summary: 'List project tasks', tags: ['App API'], security: [{ appApiKey: [] }] },
+      post: {
+        summary: 'Create or update a task by externalKey',
+        tags: ['App API'],
+        security: [{ appApiKey: [] }],
+      },
+    },
+    '/app/tasks/bulk': {
+      post: { summary: 'Create or update up to 500 tasks', tags: ['App API'], security: [{ appApiKey: [] }] },
+    },
+    '/app/tasks/{ref}': {
+      get: { summary: 'Get a task by key (BANK-4) or externalKey', tags: ['App API'], security: [{ appApiKey: [] }] },
+      patch: {
+        summary: 'Update status, title, description, priority or add a comment',
+        tags: ['App API'],
+        security: [{ appApiKey: [] }],
+      },
+    },
+    '/app/tasks/{ref}/comments': {
+      post: { summary: 'Comment on a task', tags: ['App API'], security: [{ appApiKey: [] }] },
+    },
+    '/app/document': {
+      post: {
+        summary: 'Sync the implementation document (multipart "file", ?dryRun=true to preview)',
+        tags: ['App API'],
+        security: [{ appApiKey: [] }],
+      },
+    },
   },
 };

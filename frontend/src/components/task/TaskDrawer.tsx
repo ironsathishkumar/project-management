@@ -398,9 +398,9 @@ export function TaskDrawer({
                         }`
                       : 'Unassigned'}
                 </Typography>
-                {task?.source?.kind === 'DOCUMENT' && (
+                {task?.source && (
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                    From document: {task.source.name}
+                    {task.source.kind === 'DOCUMENT' ? 'From document' : 'From app'}: {task.source.name}
                     {task.source.section ? ` · ${task.source.section}` : ''}
                   </Typography>
                 )}

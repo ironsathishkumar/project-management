@@ -82,6 +82,15 @@ function ProjectSettingsContent() {
         <Button variant="outlined" component={Link} href={`/projects/import?projectId=${params.projectId}`}>
           Import / sync document
         </Button>
+        <Divider sx={{ my: 3 }} />
+        <Typography variant="subtitle1">Connected apps</Typography>
+        <Typography color="text.secondary" sx={{ mb: 2, maxWidth: 560 }}>
+          Give an application its own API key so it can move tasks, add comments and re-sync its document
+          automatically.
+        </Typography>
+        <Button variant="outlined" component={Link} href={`/integrations?projectId=${params.projectId}`}>
+          Manage connected apps
+        </Button>
       </CardContent>
     </Card>
   );

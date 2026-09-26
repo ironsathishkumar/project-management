@@ -273,3 +273,43 @@ export const createCustomFieldSchema = z.object({
   options: z.array(z.string()).optional(),
   isRequired: z.boolean().optional(),
 });
+
+export const createIntegrationSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  projectId: z.string().min(1),
+  description: z.string().max(500).optional(),
+});
+
+export const updateIntegrationSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    description: z.string().max(500).optional(),
+    status: z.enum(['ACTIVE', 'REVOKED']).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update' });
+
+const appTaskFields = {
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(20000).optional(),
+  status: z.string().trim().min(1).max(60).optional(),
+  priority: z.enum(TASK_PRIORITIES).optional(),
+  comment: z.string().trim().min(1).max(5000).optional(),
+};
+
+export const appUpsertTaskSchema = z.object({
+  externalKey: z.string().trim().min(1).max(200),
+  section: z.string().trim().max(120).optional(),
+  ...appTaskFields,
+});
+
+export const appBulkUpsertSchema = z.object({
+  tasks: z.array(appUpsertTaskSchema).min(1).max(500),
+});
+
+export const appUpdateTaskSchema = z
+  .object(appTaskFields)
+  .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update' });
+
+export const appCommentSchema = z.object({
+  content: z.string().trim().min(1).max(5000),
+});

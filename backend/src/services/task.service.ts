@@ -262,7 +262,15 @@ export const taskService = {
       tagIds?: string[];
       customFields?: Record<string, unknown>;
       externalKey?: string;
-      source?: { kind: 'DOCUMENT' | 'APP' | 'GITHUB'; name?: string; section?: string; importedDescription?: string };
+      source?: {
+        kind: 'DOCUMENT' | 'APP' | 'GITHUB';
+        name?: string;
+        section?: string;
+        importedDescription?: string;
+        importedTitle?: string;
+        integrationId?: string;
+      };
+      activityMeta?: Record<string, unknown>;
     }
   ) {
     const project = await Project.findOne({ id: input.projectId, workspaceId });
@@ -337,7 +345,7 @@ export const taskService = {
       action: 'TASK_CREATED',
       entityType: 'task',
       entityId: task.id,
-      metadata: { title: task.title },
+      metadata: { title: task.title, ...input.activityMeta },
     });
 
     if (task.assigneeId && task.assigneeId !== userId) {

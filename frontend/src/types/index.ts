@@ -163,6 +163,35 @@ export interface ImportPreview {
   counts: Record<ImportAction, number>;
 }
 
+export interface Integration {
+  id: string;
+  projectId: string;
+  project: { id: string; name: string; key: string } | null;
+  name: string;
+  description: string;
+  keyPrefix: string;
+  status: 'ACTIVE' | 'REVOKED';
+  createdBy: { id: string; name: string } | null;
+  lastUsedAt?: string;
+  requestCount: number;
+  createdAt: string;
+}
+
+export interface IntegrationWithKey {
+  integration: Integration;
+  apiKey: string;
+}
+
+export interface IntegrationActivity {
+  id: string;
+  action: string;
+  taskId?: string;
+  task: { key: string | null; title: string } | null;
+  toStatus: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface ImportResult {
   project: { id: string; name: string; key: string };
   changes: ImportChange[];
@@ -300,7 +329,8 @@ export type NavMenuIcon =
   | 'backlog'
   | 'list'
   | 'timeline'
-  | 'overview';
+  | 'overview'
+  | 'integrations';
 
 export interface NavMenuItem {
   key: string;

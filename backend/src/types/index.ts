@@ -18,3 +18,12 @@ export interface WorkspaceContext {
   /** Present for non-admin members — project IDs they can access */
   assignedProjectIds?: string[];
 }
+
+/** Resolved from an application API key on /app routes */
+export interface AppContext {
+  integrationId: string;
+  integrationName: string;
+  workspaceId: string;
+  projectId: string;
+  actorUserId: string;
+}

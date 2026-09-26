@@ -32,6 +32,8 @@ const taskSchema = new Schema(
           name: { type: String, default: '' },
           section: { type: String, default: '' },
           importedDescription: { type: String, default: '' },
+          importedTitle: { type: String },
+          integrationId: { type: String },
           syncedAt: { type: Date },
         },
         { _id: false }

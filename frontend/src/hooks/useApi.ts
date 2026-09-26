@@ -7,6 +7,9 @@ import type {
   FilterGroup,
   ImportPreview,
   ImportResult,
+  Integration,
+  IntegrationActivity,
+  IntegrationWithKey,
   NavigationMenus,
   NotificationItem,
   Project,
@@ -73,6 +76,55 @@ export function useApplyDocumentImport() {
       void queryClient.invalidateQueries({ queryKey: ['navigation'] });
     },
   });
+}
+
+export function useIntegrations(projectId?: string) {
+  return useQuery({
+    queryKey: ['integrations', projectId ?? null],
+    queryFn: () =>
+      api<Integration[]>(`/integrations${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  });
+}
+
+export function useIntegrationActivity(integrationId?: string | null) {
+  return useQuery({
+    queryKey: ['integration-activity', integrationId],
+    queryFn: () => api<IntegrationActivity[]>(`/integrations/${integrationId}/activity`),
+    enabled: Boolean(integrationId),
+  });
+}
+
+function useIntegrationMutation<TInput, TResult>(mutationFn: (input: TInput) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['integrations'] });
+    },
+  });
+}
+
+export function useCreateIntegration() {
+  return useIntegrationMutation((input: { name: string; projectId: string; description?: string }) =>
+    api<IntegrationWithKey>('/integrations', { method: 'POST', body: JSON.stringify(input) })
+  );
+}
+
+export function useUpdateIntegration() {
+  return useIntegrationMutation(
+    ({ id, ...input }: { id: string; name?: string; description?: string; status?: 'ACTIVE' | 'REVOKED' }) =>
+      api<Integration>(`/integrations/${id}`, { method: 'PATCH', body: JSON.stringify(input) })
+  );
+}
+
+export function useRotateIntegration() {
+  return useIntegrationMutation((id: string) =>
+    api<IntegrationWithKey>(`/integrations/${id}/rotate`, { method: 'POST' })
+  );
+}
+
+export function useDeleteIntegration() {
+  return useIntegrationMutation((id: string) => api<{ deleted: boolean }>(`/integrations/${id}`, { method: 'DELETE' }));
 }
 
 export function useWorkspaces() {

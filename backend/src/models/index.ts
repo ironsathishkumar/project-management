@@ -22,3 +22,4 @@ export { Attachment } from './Attachment';
 export { Sprint } from './Sprint';
 export { ProjectRole } from './ProjectRole';
 export { TimeEntry } from './TimeEntry';
+export { Integration } from './Integration';

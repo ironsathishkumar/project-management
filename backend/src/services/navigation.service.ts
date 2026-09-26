@@ -12,7 +12,8 @@ export type MenuIcon =
   | 'backlog'
   | 'list'
   | 'timeline'
-  | 'overview';
+  | 'overview'
+  | 'integrations';
 
 export interface NavMenuItem {
   key: string;
@@ -35,6 +36,7 @@ function workspaceMenus(roleKey: string): NavMenuItem[] {
       { key: 'tasks', label: 'My Tasks', href: '/tasks', icon: 'tasks', order: 40 },
       { key: 'calendar', label: 'Calendar', href: '/calendar', icon: 'calendar', order: 50 },
       { key: 'reports', label: 'Reports', href: '/reports', icon: 'reports', order: 60 },
+      { key: 'integrations', label: 'Integrations', href: '/integrations', icon: 'integrations', order: 65 },
       { key: 'settings', label: 'Settings', href: '/settings', icon: 'settings', order: 70 },
     ];
   }

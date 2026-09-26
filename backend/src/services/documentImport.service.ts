@@ -123,7 +123,7 @@ function diff(document: ParsedDocument, state: ProjectState): ImportChange[] {
   return changes;
 }
 
-async function resolveDefaults(workspaceId: string, workflowId: string) {
+export async function resolveDefaults(workspaceId: string, workflowId: string) {
   const [defaultStatus, completedStatus, categories] = await Promise.all([
     Status.findOne({ workflowId, isDefault: true, isActive: true }),
     Status.findOne({ workflowId, category: STATUS_CATEGORIES.COMPLETED, isActive: true }).sort({ order: 1 }),
@@ -139,13 +139,13 @@ async function resolveDefaults(workspaceId: string, workflowId: string) {
   return { defaultStatus, completedStatus, category };
 }
 
-async function ensureMilestones(workspaceId: string, projectId: string, sections: string[]) {
+export async function ensureMilestones(workspaceId: string, projectId: string, sections: string[]) {
   const named = sections.filter((name) => name && name !== 'General');
   const existing = await Milestone.find({ workspaceId, projectId, name: { $in: named } });
   const byName = new Map(existing.map((milestone) => [milestone.name, milestone.id]));
   for (const name of named) {
     if (!byName.has(name)) {
-      const milestone = await Milestone.create({ workspaceId, projectId, name, description: 'Imported from document' });
+      const milestone = await Milestone.create({ workspaceId, projectId, name, description: 'Created by import' });
       byName.set(name, milestone.id);
     }
   }
@@ -171,7 +171,8 @@ export const documentImportService = {
     workspaceId: string,
     userId: string,
     file: { buffer: Buffer; originalname: string },
-    target: ImportTarget
+    target: ImportTarget,
+    via: Record<string, unknown> = { via: 'document' }
   ) {
     const document = await parseDocumentFile(file.buffer, file.originalname);
     if (!document.itemCount) {
@@ -244,7 +245,7 @@ export const documentImportService = {
           action: 'TASK_STATUS_CHANGED',
           entityType: 'task',
           entityId: task.id,
-          metadata: { fromStatusId, toStatusId: completedStatus.id, via: 'document', fileName: document.fileName },
+          metadata: { fromStatusId, toStatusId: completedStatus.id, ...via, fileName: document.fileName },
         });
         continue;
       }
@@ -271,7 +272,7 @@ export const documentImportService = {
       action: 'DOCUMENT_IMPORTED',
       entityType: 'project',
       entityId: project.id,
-      metadata: { fileName: document.fileName, counts },
+      metadata: { ...via, fileName: document.fileName, counts },
     });
 
     return {

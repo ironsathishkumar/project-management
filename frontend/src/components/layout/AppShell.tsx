@@ -10,6 +10,7 @@ import {
   CalendarMonthOutlined,
   DashboardOutlined,
   FolderOutlined,
+  HubOutlined,
   InsightsOutlined,
   Inventory2Outlined,
   LogoutOutlined,
@@ -71,6 +72,8 @@ function menuIcon(icon: NavMenuIcon) {
       return <Inventory2Outlined {...props} />;
     case 'timeline':
       return <TimelineOutlined {...props} />;
+    case 'integrations':
+      return <HubOutlined {...props} />;
     default:
       return <FolderOutlined {...props} />;
   }
