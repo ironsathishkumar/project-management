@@ -8,8 +8,10 @@ import { ApiError } from '../utils/ApiError';
 import { decryptSecret, encryptSecret } from '../utils/secrets';
 import { appSyncService } from './appSync.service';
 import { parseCommitMessage } from './commitParser';
-import { detectFormat } from './documentParser';
+import { documentImportService, ImportTarget } from './documentImport.service';
+import { detectFormat, ParsedDocument, parseDocumentFile } from './documentParser';
 import { findOwned, integrationService, presentIntegrations } from './integration.service';
+import { projectService } from './project.service';
 
 export interface IncomingCommit {
   sha: string;
@@ -75,8 +77,89 @@ function contentsRoute(repo: string, filePath: string, ref?: string) {
 }
 
 async function fetchFile(repo: string, filePath: string, ref: string, token?: string) {
+  if (!token) {
+    // raw.githubusercontent.com does not count against the 60 requests/hour anonymous API limit.
+    const encodedPath = filePath.replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/');
+    const raw = await fetch(`https://raw.githubusercontent.com/${repo}/${ref}/${encodedPath}`, {
+      headers: { 'User-Agent': 'project-tracker' },
+    });
+    if (raw.ok) return Buffer.from(await raw.arrayBuffer());
+    if (raw.status === 404) {
+      throw ApiError.badRequest('GITHUB_ERROR', `${filePath} was not found on ${ref}`);
+    }
+  }
   const response = await githubFetch(contentsRoute(repo, filePath, ref), token, 'application/vnd.github.raw+json');
   return Buffer.from(await response.arrayBuffer());
+}
+
+interface RepoInfo {
+  full_name: string;
+  name: string;
+  private: boolean;
+  default_branch: string;
+  description: string | null;
+}
+
+const DOC_FILE = /\.(md|markdown|txt|docx|pdf)$/i;
+const IGNORED_PATH = /(^|\/)(node_modules|vendor|dist|build|out|coverage|\.next|\.git|\.github)\//i;
+const IGNORED_NAME = /^(changelog|license|licence|code_of_conduct|contributing|security)\b/i;
+const wordIn = (words: string) => new RegExp(`(^|[^a-z])(${words})([^a-z]|$)`, 'i');
+const PLAN_NAMES: Array<[RegExp, number]> = [
+  [wordIn('implementation|checklist|todos?|tasks?'), 12],
+  [wordIn('plan|planning|roadmap|milestones?|backlog'), 10],
+  [wordIn('prd|requirements?'), 6],
+];
+const PLAN_NAME = wordIn('implementation|checklist|todos?|tasks?|plan|planning|roadmap|milestones?|backlog|prd|requirements?');
+const MAX_CANDIDATES = 40;
+const MAX_AUTO_PROBES = 5;
+
+function scoreDocPath(filePath: string) {
+  const name = path.posix.basename(filePath);
+  let score = -(filePath.split('/').length - 1);
+  score += PLAN_NAMES.find(([pattern]) => pattern.test(name))?.[1] ?? 0;
+  if (/^docs?\//i.test(filePath)) score += 3;
+  if (/^readme\./i.test(name)) score += 1;
+  return score;
+}
+
+async function listDocCandidates(repo: string, branch: string, token?: string) {
+  const tree = await githubJson<{ tree: Array<{ path: string; type: string; size?: number }> }>(
+    `/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+    token
+  );
+  return tree.tree
+    .filter(
+      (entry) =>
+        entry.type === 'blob' &&
+        DOC_FILE.test(entry.path) &&
+        !IGNORED_PATH.test(entry.path) &&
+        !IGNORED_NAME.test(path.posix.basename(entry.path))
+    )
+    .map((entry) => ({ path: entry.path, size: entry.size ?? 0, score: scoreDocPath(entry.path) }))
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+    .slice(0, MAX_CANDIDATES);
+}
+
+async function readDocument(repo: string, docsPath: string, ref: string, token?: string) {
+  const file = { buffer: await fetchFile(repo, docsPath, ref, token), originalname: path.posix.basename(docsPath) };
+  return { file, document: await parseDocumentFile(file.buffer, file.originalname) };
+}
+
+/** Prefers a checklist document, then a plan-like file name; plain READMEs with bullet lists are never auto-picked. */
+async function pickPlanDocument(repo: string, ref: string, candidates: Array<{ path: string }>, token?: string) {
+  const probes = await Promise.all(
+    candidates.slice(0, MAX_AUTO_PROBES).map((candidate) =>
+      readDocument(repo, candidate.path, ref, token)
+        .then((read) => ({ path: candidate.path, ...read }))
+        .catch(() => null)
+    )
+  );
+  const usable = probes.filter((probe): probe is NonNullable<typeof probe> => Boolean(probe?.document.itemCount));
+  return (
+    usable.find((probe) => probe.document.mode === 'checklist') ??
+    usable.find((probe) => PLAN_NAME.test(path.posix.basename(probe.path))) ??
+    null
+  );
 }
 
 async function recordEvent(integrationId: string, status: 'OK' | 'ERROR', message: string, extra: Record<string, unknown> = {}) {
@@ -199,6 +282,19 @@ async function pollIntegration(integration: IntegrationRecord, options: { sinceD
 
   try {
     const ctx = await integrationService.contextFor(integration.id as string);
+
+    let document: Awaited<ReturnType<typeof syncDocument>> | null = null;
+    let lastDocSha = github.lastDocSha;
+    if (github.docsPath) {
+      const docParams = new URLSearchParams({ path: github.docsPath.replace(/^\/+/, ''), per_page: '1' });
+      if (github.branch) docParams.set('sha', github.branch);
+      const [latest] = await githubJson<Array<{ sha: string }>>(`/repos/${github.repo}/commits?${docParams}`, token);
+      if (latest && latest.sha !== github.lastDocSha) {
+        document = await syncDocument(ctx, github.docsPath, await fetchFile(github.repo, github.docsPath, latest.sha, token));
+        lastDocSha = latest.sha;
+      }
+    }
+
     const params = new URLSearchParams({ since: since.toISOString(), per_page: '100' });
     if (github.branch) params.set('sha', github.branch);
     const raw: Array<{ sha: string; html_url: string; commit: { message: string; author?: { name?: string } } }> = [];
@@ -216,18 +312,6 @@ async function pollIntegration(integration: IntegrationRecord, options: { sinceD
         author: item.commit.author?.name,
       }))
     );
-
-    let document: Awaited<ReturnType<typeof syncDocument>> | null = null;
-    let lastDocSha = github.lastDocSha;
-    if (github.docsPath) {
-      const docParams = new URLSearchParams({ path: github.docsPath.replace(/^\/+/, ''), per_page: '1' });
-      if (github.branch) docParams.set('sha', github.branch);
-      const [latest] = await githubJson<Array<{ sha: string }>>(`/repos/${github.repo}/commits?${docParams}`, token);
-      if (latest && latest.sha !== github.lastDocSha) {
-        document = await syncDocument(ctx, github.docsPath, await fetchFile(github.repo, github.docsPath, latest.sha, token));
-        lastDocSha = latest.sha;
-      }
-    }
 
     const message = describe(commits, document);
     await recordEvent(integration.id as string, document && !document.ok ? 'ERROR' : 'OK', `Sync: ${message}`, {
@@ -264,6 +348,127 @@ interface PushPayload {
 }
 
 export const githubService = {
+  async discover(
+    workspaceId: string,
+    input: { repo: string; token?: string; branch?: string; docsPath?: string } & ImportTarget
+  ) {
+    const repoName = normalizeRepo(input.repo);
+    const token = input.token?.trim() || undefined;
+    const info = await githubJson<RepoInfo>(`/repos/${repoName}`, token);
+    const branch = input.branch?.trim() || info.default_branch;
+    const candidates = await listDocCandidates(info.full_name, branch, token);
+
+    let docsPath: string | null = null;
+    let file: { buffer: Buffer; originalname: string } | null = null;
+    let docError: string | undefined;
+    const requested = input.docsPath?.trim().replace(/^\/+/, '');
+    if (requested) {
+      docsPath = requested;
+      try {
+        file = (await readDocument(info.full_name, requested, branch, token)).file;
+      } catch (error) {
+        docError = `Couldn't read ${requested}: ${error instanceof Error ? error.message : 'unknown error'}`;
+      }
+    } else if (requested === undefined) {
+      const picked = await pickPlanDocument(info.full_name, branch, candidates, token);
+      docsPath = picked?.path ?? null;
+      file = picked?.file ?? null;
+    }
+
+    const preview = file
+      ? await documentImportService.preview(workspaceId, file, {
+          projectId: input.projectId,
+          projectName: input.projectName,
+          projectKey: input.projectKey,
+        })
+      : null;
+
+    return {
+      repo: {
+        fullName: info.full_name,
+        name: info.name,
+        private: info.private,
+        defaultBranch: info.default_branch,
+        description: info.description ?? '',
+      },
+      branch,
+      candidates: candidates.map(({ path: filePath, size }) => ({ path: filePath, size })),
+      docsPath,
+      preview,
+      docError,
+    };
+  },
+
+  async setup(
+    workspaceId: string,
+    userId: string,
+    input: {
+      repo: string;
+      token?: string;
+      branch?: string;
+      docsPath?: string;
+      autoSync?: boolean;
+      sinceDays?: number;
+    } & ImportTarget
+  ) {
+    const token = input.token?.trim() || undefined;
+    const info = await githubJson<RepoInfo>(`/repos/${normalizeRepo(input.repo)}`, token);
+    const branch = input.branch?.trim() || '';
+    const docsPath = input.docsPath?.trim().replace(/^\/+/, '') || '';
+
+    let document: ParsedDocument | null = null;
+    if (docsPath) {
+      document = (await readDocument(info.full_name, docsPath, branch || info.default_branch, token)).document;
+      if (!document.itemCount) {
+        throw ApiError.badRequest(
+          'NO_TASKS_FOUND',
+          `No tasks were found in ${docsPath}. Use headings for sections and bullet or checkbox lists for tasks`
+        );
+      }
+    }
+
+    let projectId = input.projectId;
+    if (!projectId) {
+      const created = await projectService.create(workspaceId, userId, {
+        name: input.projectName?.trim() || document?.title || info.name,
+        key: input.projectKey,
+        description: `Synced from https://github.com/${info.full_name}`,
+      });
+      projectId = created.id as string;
+    }
+
+    const { integration, apiKey } = await integrationService.create(workspaceId, userId, {
+      name: info.full_name,
+      projectId,
+      description: `https://github.com/${info.full_name}`,
+    });
+    await githubService.configure(workspaceId, integration.id, {
+      repo: info.full_name,
+      branch,
+      docsPath,
+      token,
+      autoSync: input.autoSync ?? true,
+    });
+
+    let sync: Awaited<ReturnType<typeof pollIntegration>> | null = null;
+    let syncError: string | undefined;
+    try {
+      sync = await pollIntegration(await findOwned(workspaceId, integration.id), { sinceDays: input.sinceDays ?? 30 });
+    } catch (error) {
+      syncError = error instanceof Error ? error.message : 'Initial sync failed';
+    }
+
+    const [presented] = await presentIntegrations([await findOwned(workspaceId, integration.id)]);
+    const project = await Project.findOne({ id: projectId }).select('id name key');
+    return {
+      integration: presented,
+      apiKey,
+      project: project ? { id: project.id as string, name: project.name, key: project.key } : null,
+      sync: sync ? { message: sync.message, commits: sync.commits, document: sync.document } : null,
+      syncError,
+    };
+  },
+
   async configure(
     workspaceId: string,
     integrationId: string,
@@ -370,10 +575,6 @@ export const githubService = {
     try {
       const ctx = await integrationService.contextFor(integrationId);
       const pushed = (payload.commits ?? []).filter((commit) => commit.distinct !== false);
-      const commits = await processCommits(
-        ctx,
-        pushed.map((commit) => ({ sha: commit.id, message: commit.message, url: commit.url, author: commit.author?.name }))
-      );
 
       let document: Awaited<ReturnType<typeof syncDocument>> | null = null;
       const docsPath = github.docsPath;
@@ -381,6 +582,11 @@ export const githubService = {
       if (touched && payload.after) {
         document = await syncDocument(ctx, docsPath, await fetchFile(github.repo, docsPath, payload.after, tokenOf(integration)));
       }
+
+      const commits = await processCommits(
+        ctx,
+        pushed.map((commit) => ({ sha: commit.id, message: commit.message, url: commit.url, author: commit.author?.name }))
+      );
 
       const message = describe(commits, document);
       await recordEvent(integrationId, document && !document.ok ? 'ERROR' : 'OK', `Push to ${branch}: ${message}`, {

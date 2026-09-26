@@ -5,6 +5,8 @@ import type {
   AuthUser,
   Category,
   FilterGroup,
+  GithubDiscovery,
+  GithubSetupResult,
   GithubSyncResult,
   GithubTestResult,
   ImportPreview,
@@ -123,6 +125,37 @@ export function useRotateIntegration() {
   return useIntegrationMutation((id: string) =>
     api<IntegrationWithKey>(`/integrations/${id}/rotate`, { method: 'POST' })
   );
+}
+
+export interface GithubSetupInput {
+  repo: string;
+  token?: string;
+  branch?: string;
+  docsPath?: string;
+  projectId?: string;
+  projectName?: string;
+  projectKey?: string;
+}
+
+export function useDiscoverGithub() {
+  return useMutation({
+    mutationFn: (input: GithubSetupInput) =>
+      api<GithubDiscovery>('/integrations/github/discover', { method: 'POST', body: JSON.stringify(input) }),
+  });
+}
+
+export function useSetupGithub() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: GithubSetupInput & { autoSync?: boolean }) =>
+      api<GithubSetupResult>('/integrations/github/setup', { method: 'POST', body: JSON.stringify(input) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['integrations'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+    },
+  });
 }
 
 export function useConfigureGithub() {

@@ -44,6 +44,9 @@ export default function ProjectsPage() {
         </Box>
         {isAdmin && (
           <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Button variant="outlined" component={Link} href="/integrations/github">
+              Add from GitHub
+            </Button>
             <Button variant="outlined" component={Link} href="/projects/import">
               Import from document
             </Button>

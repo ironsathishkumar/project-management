@@ -12,6 +12,8 @@ import {
   appCommentSchema,
   appCommitsSchema,
   configureGithubSchema,
+  githubDiscoverSchema,
+  githubSetupSchema,
   githubSyncSchema,
   appUpdateTaskSchema,
   appUpsertTaskSchema,
@@ -25,6 +27,8 @@ export const integrationRouter = Router();
 integrationRouter.use(authenticate, loadWorkspaceContext, requireWorkspaceAdmin);
 integrationRouter.get('/', integrationController.list);
 integrationRouter.post('/', validate(createIntegrationSchema), integrationController.create);
+integrationRouter.post('/github/discover', validate(githubDiscoverSchema), integrationController.discoverGithub);
+integrationRouter.post('/github/setup', validate(githubSetupSchema), integrationController.setupGithub);
 integrationRouter.patch('/:integrationId', validate(updateIntegrationSchema), integrationController.update);
 integrationRouter.post('/:integrationId/rotate', integrationController.rotate);
 integrationRouter.delete('/:integrationId', integrationController.remove);

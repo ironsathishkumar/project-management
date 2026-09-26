@@ -34,6 +34,14 @@ export const integrationController = {
     sendSuccess(res, await integrationService.activity(req.workspaceContext!.workspaceId, req.params.integrationId));
   }),
 
+  discoverGithub: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(res, await githubService.discover(req.workspaceContext!.workspaceId, req.body));
+  }),
+
+  setupGithub: asyncHandler(async (req: Request, res: Response) => {
+    sendSuccess(res, await githubService.setup(req.workspaceContext!.workspaceId, req.authUser!.id, req.body), 201);
+  }),
+
   configureGithub: asyncHandler(async (req: Request, res: Response) => {
     sendSuccess(
       res,

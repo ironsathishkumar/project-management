@@ -210,6 +210,21 @@ export interface IntegrationWithKey {
   apiKey: string;
 }
 
+export interface GithubDiscovery {
+  repo: { fullName: string; name: string; private: boolean; defaultBranch: string; description: string };
+  branch: string;
+  candidates: Array<{ path: string; size: number }>;
+  docsPath: string | null;
+  preview: ImportPreview | null;
+  docError?: string;
+}
+
+export interface GithubSetupResult extends IntegrationWithKey {
+  project: { id: string; name: string; key: string } | null;
+  sync: GithubSyncResult | null;
+  syncError?: string;
+}
+
 export interface IntegrationActivity {
   id: string;
   action: string;

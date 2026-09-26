@@ -14,6 +14,7 @@ import { API_URL } from '@/lib/api';
 import { CopyBlock } from '@/components/integrations/CopyBlock';
 import { GithubSummary } from '@/components/integrations/GithubPanel';
 import type { Integration, IntegrationWithKey } from '@/types';
+import GitHubIcon from '@mui/icons-material/GitHub';
 import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
 import {
   Alert,
@@ -276,9 +277,19 @@ function IntegrationsContent() {
             can only touch its connected project.
           </Typography>
         </Box>
-        <Button variant="contained" onClick={() => setOpen(true)} sx={{ alignSelf: { sm: 'flex-start' }, flexShrink: 0 }}>
-          Connect app
-        </Button>
+        <Stack direction="row" spacing={1} sx={{ alignSelf: { sm: 'flex-start' }, flexShrink: 0 }}>
+          <Button variant="outlined" onClick={() => setOpen(true)}>
+            Connect app (API key)
+          </Button>
+          <Button
+            variant="contained"
+            component={Link}
+            href={filterProjectId ? `/integrations/github?projectId=${filterProjectId}` : '/integrations/github'}
+            startIcon={<GitHubIcon />}
+          >
+            Add from GitHub
+          </Button>
+        </Stack>
       </Stack>
 
       {filterProjectId && (
@@ -337,12 +348,17 @@ function IntegrationsContent() {
               <HubOutlinedIcon color="action" fontSize="large" />
               <Typography variant="h6">No apps connected yet</Typography>
               <Typography color="text.secondary" sx={{ maxWidth: 480 }}>
-                Connect an application to a project to get an API key. Tip: import its implementation document first
-                so the tasks already exist.
+                Paste a GitHub repository to create its project and tasks from the implementation document and keep them
+                in sync with commits.
               </Typography>
-              <Button variant="outlined" onClick={() => setOpen(true)}>
-                Connect app
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button variant="contained" component={Link} href="/integrations/github" startIcon={<GitHubIcon />}>
+                  Add from GitHub
+                </Button>
+                <Button variant="outlined" onClick={() => setOpen(true)}>
+                  Connect app (API key)
+                </Button>
+              </Stack>
             </Stack>
           </CardContent>
         </Card>

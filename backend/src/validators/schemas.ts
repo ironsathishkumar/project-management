@@ -322,6 +322,24 @@ export const configureGithubSchema = z.object({
   autoSync: z.boolean().optional(),
 });
 
+const githubTargetFields = {
+  repo: z.string().trim().min(3).max(200),
+  token: z.string().trim().max(400).optional(),
+  branch: z.string().trim().max(200).optional(),
+  docsPath: z.string().trim().max(300).optional(),
+  projectId: z.string().min(1).optional(),
+  projectName: z.string().trim().max(120).optional(),
+  projectKey: z.string().trim().max(8).optional(),
+};
+
+export const githubDiscoverSchema = z.object(githubTargetFields);
+
+export const githubSetupSchema = z.object({
+  ...githubTargetFields,
+  autoSync: z.boolean().optional(),
+  sinceDays: z.number().int().min(1).max(90).optional(),
+});
+
 export const githubSyncSchema = z.object({
   sinceDays: z.number().int().min(1).max(90).optional(),
 });
